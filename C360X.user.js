@@ -1,19 +1,21 @@
 // ==UserScript==
 // @name         C360X - Bulk Search
 // @namespace    http://tampermonkey.net/
-// @version      32.6.0
+// @version      32.6.1
 // @description  Fast Bulk Search for Customer 360.
 // @author       Anas Wael
 // @match        *://*.te.eg/*
 // @grant        none
 // @run-at       document-idle
+// @downloadURL  https://raw.githubusercontent.com/anaswaelali/360/main/C360X.user.js
+// @updateURL    https://raw.githubusercontent.com/anaswaelali/360/main/C360X.user.js
 // ==/UserScript==
 
 (function () {
     "use strict";
 
     if (window.__C360X__) { return; }
-    var X = window.__C360X__ = { version: "32.6.1" };
+    var X = window.__C360X__ = { version: "32.6.2" };
 
     // ==========================================
     // حقن الـ CSS عشان التصميم يرجع زي الأول
@@ -66,7 +68,7 @@
     document.head.appendChild(style);
 
     // ==========================================
-    // باقي كود الجافاسكريبت بتاعنا
+    // باقي كود الجافاسكريبت
     // ==========================================
     var state = { items: [], type: "FBB" };
     var isFetching = false;
