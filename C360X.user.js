@@ -13,7 +13,7 @@
     "use strict";
 
     if (window.__C360X__) { return; }
-    var X = window.__C360X__ = { version: "32.6.0" };
+    var X = window.__C360X__ = { version: "32.6.1" };
 
     // ==========================================
     // حقن الـ CSS عشان التصميم يرجع زي الأول
