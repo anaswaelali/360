@@ -15,6 +15,59 @@
     if (window.__C360X__) { return; }
     var X = window.__C360X__ = { version: "32.6.0" };
 
+    // ==========================================
+    // حقن الـ CSS عشان التصميم يرجع زي الأول
+    // ==========================================
+    var css = `
+        body.c360x-lock { overflow: hidden !important; }
+        #c360x-modal { display: none; position: fixed; inset: 0; z-index: 99999; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        #c360x-modal.on { display: flex; align-items: center; justify-content: center; }
+        .c360x-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); }
+        .c360x-panel { position: relative; background: #fff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; display: flex; flex-direction: column; max-height: 92vh; }
+        .c360x-head { padding: 20px 24px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
+        .c360x-head h3 { margin: 0; font-size: 20px; color: #0f172a; font-weight: 700; }
+        .c360x-head p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+        .c360x-x { background: transparent; border: none; font-size: 24px; color: #94a3b8; cursor: pointer; }
+        .c360x-x:hover { color: #ef4444; }
+        .c360x-body { padding: 24px; overflow-y: auto; flex: 1; background: #ffffff; }
+        .c360x-label { display: block; font-size: 14px; font-weight: 600; color: #334155; margin-bottom: 8px; }
+        #c360x-input { width: 100%; height: 100px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: monospace; font-size: 14px; resize: vertical; margin-bottom: 15px; }
+        .c360x-row { display: flex; align-items: center; gap: 10px; }
+        .c360x-types { display: flex; background: #f1f5f9; padding: 4px; border-radius: 8px; }
+        .c360x-types button { padding: 8px 16px; border: none; background: transparent; border-radius: 6px; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
+        .c360x-types button.active { background: #fff; color: #702283; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .c360x-btn { padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; transition: 0.2s; }
+        .c360x-btn.primary { background: #702283; color: #fff; border-color: #702283; }
+        .c360x-btn.primary:hover { background: #5c1a6b; }
+        .c360x-btn.ghost { background: #fff; border-color: #cbd5e1; color: #475569; }
+        .c360x-btn.ghost:hover { background: #f8fafc; }
+        .c360x-list-head { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
+        .c360x-list { max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc; }
+        .c360x-item { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; gap: 10px; background: #fff; }
+        .c360x-item:last-child { border-bottom: none; }
+        .c360x-item:hover { background: #f1f5f9; }
+        .c360x-checkbox { width: 18px; height: 18px; accent-color: #702283; cursor: pointer; }
+        .c360x-num { font-family: monospace; font-size: 15px; font-weight: 600; color: #1e293b; }
+        .c360x-type-select { padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 600; color: #475569; }
+        .c360x-trigger { position: fixed; bottom: 30px; right: 30px; z-index: 9999; background: #702283; color: white; border: none; border-radius: 30px; padding: 12px 20px; font-family: 'Segoe UI', sans-serif; font-weight: 700; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(112, 34, 131, 0.4); transition: all 0.3s ease; }
+        .c360x-trigger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(112, 34, 131, 0.6); }
+        .c360x-trigger svg { width: 24px; height: 24px; }
+        .c360x-pill { background: #fff; color: #702283; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; }
+        
+        /* Table Styles */
+        #c360x-results table { margin-top: 20px; font-size: 13px; }
+        #c360x-results th { background: #f8f9fa; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; padding: 12px 10px; text-align: left; }
+        #c360x-results td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; }
+        #c360x-results tr:hover { background: #f8fafc; }
+    `;
+
+    var style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    // ==========================================
+    // باقي كود الجافاسكريبت بتاعنا
+    // ==========================================
     var state = { items: [], type: "FBB" };
     var isFetching = false;
 
@@ -38,7 +91,6 @@
         return null;
     }
 
-    // دالة سكانر مخصوصة للـ Card Type
     function findCardType(obj) {
         var result = null;
         function traverse(o) {
@@ -374,8 +426,6 @@
                     if (matched) targetPortData = matched;
                 }
                 
-                console.log("Port Details Data for Debugging:", { popData: popData, pData: pData, targetPortData: targetPortData, sa: sa });
-
                 var att = findValue(popData, "AttainableSpeed") || findValue(targetPortData, "AttainableSpeed") || sa.ATTAINABLE_SPEED;
                 var op = findValue(popData, "OperationalSpeed") || findValue(targetPortData, "OperationalSpeed") || sa.OPERATIONAL_SPEED;
                 var admin = findValue(popData, "PortAdminStatus") || findValue(targetPortData, "PortAdminStatus") || sa.ADMIN_STATUS;
