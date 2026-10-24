@@ -2,7 +2,7 @@
     "use strict";
 
     if (window.__C360X__) { return; }
-    var X = window.__C360X__ = { version: "32.5.3" };
+    var X = window.__C360X__ = { version: "32.6.0" };
 
     var state = { items: [], type: "FBB" };
     var isFetching = false;
@@ -13,18 +13,43 @@
 
     var ui = {};
 
+    // دالة بحث عادية
     function findValue(obj, keyToFind) {
         if (!obj || typeof obj !== 'object') return null;
         var keys = Object.keys(obj);
         for (var i = 0; i < keys.length; i++) {
             var k = keys[i];
-            var normK = k.toLowerCase().replace(/_/g, '');
-            var normTarget = keyToFind.toLowerCase().replace(/_/g, '');
+            var normK = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+            var normTarget = keyToFind.toLowerCase().replace(/[^a-z0-9]/g, '');
             if (normK === normTarget && obj[k] !== null && obj[k] !== undefined && obj[k] !== "") return obj[k];
             var res = findValue(obj[k], keyToFind);
             if (res) return res;
         }
         return null;
+    }
+
+    // دالة سكانر مخصوصة للـ Card Type بتدور على أي مفتاح فيه card/board + type/name/model
+    function findCardType(obj) {
+        var result = null;
+        function traverse(o) {
+            if (!o || typeof o !== 'object' || result) return;
+            for (var k in o) {
+                var key = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                // لو المفتاح فيه card أو board أو module وكمان فيه type أو name أو model
+                if ((key.includes('card') || key.includes('board') || key.includes('module')) &&
+                    (key.includes('type') || key.includes('name') || key.includes('model'))) {
+                    var val = o[k];
+                    // لازم تكون قيمة نصية ومش فاضية ومش 0 أو N/A
+                    if (typeof val === 'string' && val.trim() !== '' && val.trim() !== 'N/A' && val.trim() !== '0') {
+                        result = val.trim();
+                        return;
+                    }
+                }
+                traverse(o[k]);
+            }
+        }
+        traverse(obj);
+        return result;
     }
 
     function note(msg, kind) {
@@ -66,7 +91,7 @@
         return Promise.race([
             fetch(url, options),
             new Promise(function(resolve, reject) {
-                setTimeout(function() { reject(new Error("Timeout")); }, timeout || 4000);
+                setTimeout(function() { reject(new Error("Timeout")); }, timeout || 5000);
             })
         ]);
     }
@@ -248,16 +273,17 @@
         }
     }
 
-    async function fetchExtras(number, type, transId, sa) {
+    async function fetchExtras(number, type, transId, sa, mainData) {
         var res = { 
             outages: "Up", outageId: null, tts: "No", ttsId: "", ttsGroup: "", ttsProblem: "", ttsStatus: "",
-            usage: "N/A", attainable: "N/A", operational: "N/A", portStatus: "N/A", serialNo: null, financialStatus: null
+            usage: "N/A", attainable: "N/A", operational: "N/A", portStatus: "N/A", serialNo: null, financialStatus: null,
+            adminStatus: "N/A", opStatus: "N/A", cabinCode: "N/A", popType: "N/A", cardType: "N/A", portNo: "N/A", frame: "N/A"
         };
         var accountNumber = sa.ACCOUNT_NO || "";
 
         var pOutage = (async function() {
             try {
-                var oRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/outage/${number}/${type}/NewGetCurrentOutage?transactionID=${transId}`, { credentials: "include" }, 4000);
+                var oRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/outage/${number}/${type}/NewGetCurrentOutage?transactionID=${transId}`, { credentials: "include" }, 5000);
                 var oData = await oRes.json();
                 if (Array.isArray(oData) && oData.length > 0) {
                     res.outages = "Down";
@@ -270,7 +296,7 @@
 
         var pTTS = (async function() {
             try {
-                var tRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${number}/${type}/GetLastTicket?transactionID=${transId}`, { credentials: "include" }, 4000);
+                var tRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${number}/${type}/GetLastTicket?transactionID=${transId}`, { credentials: "include" }, 5000);
                 var tData = await tRes.json();
                 res.tts = (tData && tData.IsHaveTicketing === "Yes") ? "Yes" : "No";
                 
@@ -285,10 +311,24 @@
 
         var pUsage = (async function() {
             try {
-                var uRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${number}/${type}/GetUsage?transactionID=${transId}`, { credentials: "include" }, 4000);
+                var uRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${number}/${type}/GetUsage?transactionID=${transId}`, { credentials: "include" }, 5000);
                 var uData = await uRes.json();
+                
                 if (uData && uData.UnitsUnUsedAmount !== undefined) {
                     res.usage = `${uData.UnitsUnUsedAmount} / ${uData.UnitsInitialNumber} GB`;
+                    return; 
+                }
+
+                var subRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${number}/${type}/GetSubscriberUsageResult?transactionID=${transId}`, { credentials: "include" }, 5000);
+                if (subRes.ok) {
+                    var subData = await subRes.json();
+                    var rem = findValue(subData, "Remaining") || findValue(subData, "RemainingQuota");
+                    var tot = findValue(subData, "Total") || findValue(subData, "TotalQuota");
+                    var cons = findValue(subData, "Consumed") || findValue(subData, "Used");
+                    if (tot) {
+                        if (cons) res.usage = `${cons} / ${tot} GB`;
+                        else if (rem) res.usage = `${(parseFloat(tot)-parseFloat(rem)).toFixed(2)} / ${tot} GB`;
+                    }
                 }
             } catch (e) {}
         })();
@@ -296,7 +336,7 @@
         var pResources = (async function() {
             if (!accountNumber) return;
             try {
-                var rRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${accountNumber}/GetResourse?transactionID=${transId}`, { credentials: "include" }, 4000);
+                var rRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/${accountNumber}/GetResourse?transactionID=${transId}`, { credentials: "include" }, 5000);
                 var rData = await rRes.json();
                 var sn = findValue(rData, "SerialNo") || findValue(rData, "SerialNumber");
                 var fs = findValue(rData, "FinancialStatus") || findValue(rData, "Financial_Status");
@@ -311,26 +351,53 @@
                 var pData = {}, popData = {};
                 if (sa.MSAN_IP && sa.SHELF && sa.DATA_SLOT && sa.DATA_PORT) {
                     var popUrl = `https://customer360.te.eg/api/Customers/ServiceAcativation/XDSL/${accountNumber}/${number}/${sa.MSAN_IP}/${sa.SHELF}/${sa.DATA_SLOT}/${sa.DATA_PORT}/${sa.MSAN_VENDORID || 3}/RetrievePOPUPInfo?transactionID=${transId}`;
-                    var popRes = await fetchWithTimeout(popUrl, { credentials: "include" }, 4000);
+                    var popRes = await fetchWithTimeout(popUrl, { credentials: "include" }, 5000);
                     popData = await popRes.json();
                 }
-                if (res.attainable === "N/A" || res.portStatus === "N/A") {
-                    var pRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/ServiceAcativation/${accountNumber}/${number}/GetAnotherPortDetails?transactionID=${transId}`, { credentials: "include" }, 4000);
-                    pData = await pRes.json();
+                
+                var pRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/ServiceAcativation/${accountNumber}/${number}/GetAnotherPortDetails?transactionID=${transId}`, { credentials: "include" }, 5000);
+                pData = await pRes.json();
+
+                // لو الـ pData راجع Array، بندور على البورت بتاعنا
+                var targetPortData = pData;
+                if (Array.isArray(pData) && sa.DATA_PORT) {
+                    var matched = pData.find(function(x) {
+                        return String(x.PORT_NO || x.PortNo || x.PORT || x.portNo) === String(sa.DATA_PORT);
+                    });
+                    if (matched) targetPortData = matched;
                 }
-                var att = findValue(popData, "AttainableSpeed") || findValue(pData, "AttainableSpeed");
-                var op = findValue(popData, "OperationalSpeed") || findValue(pData, "OperationalSpeed");
-                var admin = findValue(popData, "PortAdminStatus") || findValue(pData, "PortAdminStatus");
-                var opStat = findValue(popData, "PortOperationalStatus") || findValue(pData, "PortOperationalStatus");
+                
+                // ديباج: بنطبع الداتا في الكونسول عشان لو لسه مظهرش نعرف السبب
+                console.log("Port Details Data for Debugging:", { popData: popData, pData: pData, targetPortData: targetPortData, sa: sa });
+
+                var att = findValue(popData, "AttainableSpeed") || findValue(targetPortData, "AttainableSpeed") || sa.ATTAINABLE_SPEED;
+                var op = findValue(popData, "OperationalSpeed") || findValue(targetPortData, "OperationalSpeed") || sa.OPERATIONAL_SPEED;
+                var admin = findValue(popData, "PortAdminStatus") || findValue(targetPortData, "PortAdminStatus") || sa.ADMIN_STATUS;
+                var opStat = findValue(popData, "PortOperationalStatus") || findValue(targetPortData, "PortOperationalStatus") || sa.OPERATIONAL_STATUS;
+                
                 if (att) res.attainable = att;
                 if (op) res.operational = op;
+                if (admin) res.adminStatus = admin;
+                if (opStat) res.opStatus = opStat;
+
                 if (admin && opStat) res.portStatus = admin + " / " + opStat;
                 else if (admin) res.portStatus = admin;
                 else if (opStat) res.portStatus = opStat;
+
+                res.cabinCode = sa.CABIN_CODE || sa.CabinCode || findValue(popData, "CabinCode") || findValue(targetPortData, "CabinCode") || "N/A";
+                res.popType = sa.POP_TYPE || sa.POPType || findValue(popData, "POPType") || findValue(targetPortData, "POPType") || "N/A";
+                
+                // استخدام الدالة القوية للبحث عن الـ Card Type
+                res.cardType = findCardType(sa) || findCardType(mainData) || findCardType(popData) || findCardType(targetPortData) || "N/A";
+
+                res.portNo = sa.PORT_NO || sa.PortNo || sa.DATA_PORT || findValue(popData, "PortNo") || findValue(targetPortData, "PortNo") || "N/A";
+                res.frame = sa.FRAME || sa.Frame || findValue(popData, "Frame") || findValue(targetPortData, "Frame") || "N/A";
+
             } catch (e) {}
         })();
 
         await Promise.all([pOutage, pTTS, pUsage, pResources, pPorts]);
+
         return res;
     }
 
@@ -384,6 +451,19 @@
             outageHtml = `<span class="pill pill-success" style="align-self: flex-end;">Up</span>`;
         }
 
+        var portDetailsHtml = `
+            <div class="data-row"><span class="data-label">Shelf / Slot / Port</span><span class="data-value">${sa.SHELF || 'N/A'} / ${sa.DATA_SLOT || 'N/A'} / ${sa.DATA_PORT || 'N/A'}</span></div>
+            <div class="data-row"><span class="data-label">Admin Status</span><span class="data-value">${extras.adminStatus}</span></div>
+            <div class="data-row"><span class="data-label">Operational Status</span><span class="data-value">${extras.opStatus}</span></div>
+            <div class="data-row"><span class="data-label">Attainable Speed</span><span class="data-value">${extras.attainable}</span></div>
+            <div class="data-row"><span class="data-label">Operational Speed</span><span class="data-value">${extras.operational}</span></div>
+            <div class="data-row"><span class="data-label">Cabin Code</span><span class="data-value">${extras.cabinCode}</span></div>
+            <div class="data-row"><span class="data-label">POP type</span><span class="data-value">${extras.popType}</span></div>
+            <div class="data-row"><span class="data-label">Card type</span><span class="data-value">${extras.cardType}</span></div>
+            <div class="data-row"><span class="data-label">Port No</span><span class="data-value">${extras.portNo}</span></div>
+            <div class="data-row"><span class="data-label">Frame</span><span class="data-value">${extras.frame}</span></div>
+        `;
+
         win.document.open(); 
         win.document.write(`
             <!DOCTYPE html>
@@ -396,7 +476,7 @@
                     :root { --primary: #6a1b9a; --primary-light: #9c27b0; --success: #10b981; --danger: #ef4444; --bg: #f8fafc; --card-bg: #ffffff; --text: #1e293b; --text-muted: #64748b; }
                     * { box-sizing: border-box; margin: 0; padding: 0; }
                     body { font-family: 'Inter', sans-serif; background-color: var(--bg); color: var(--text); padding: 40px 20px; }
-                    .container { max-width: 1000px; margin: 0 auto; }
+                    .container { max-width: 1200px; margin: 0 auto; }
                     .header { background: linear-gradient(135deg, var(--primary) 0%, var(--primary-light) 100%); border-radius: 16px; padding: 30px 40px; color: white; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 10px 25px rgba(106, 27, 154, 0.2); margin-bottom: 30px; position: relative; overflow: hidden; }
                     .header::before { content: ''; position: absolute; top: -50px; right: -50px; width: 200px; height: 200px; background: rgba(255,255,255,0.1); border-radius: 50%; }
                     .header-info h1 { font-size: 32px; font-weight: 800; margin-bottom: 5px; letter-spacing: -0.5px; }
@@ -430,6 +510,7 @@
                         </div>
                         <div class="status-badge">${subStatus === 'Active' ? '🟢' : '🔴'} ${subStatus}</div>
                     </div>
+                    
                     <div class="grid">
                         <div class="card">
                             <div class="card-title"><span>ℹ️</span> Basic Information</div>
@@ -437,10 +518,9 @@
                             <div class="data-row"><span class="data-label">Service Type</span><span class="data-value">${type}</span></div>
                             <div class="data-row"><span class="data-label">Usage</span><span class="data-value">${extras.usage}</span></div>
                             <div class="data-row"><span class="data-label">Contracted Speed</span><span class="data-value">${sa.ContractedSpeed || 'N/A'}</span></div>
-                            <div class="data-row"><span class="data-label">Attainable Speed</span><span class="data-value">${extras.attainable}</span></div>
-                            <div class="data-row"><span class="data-label">Operational Speed</span><span class="data-value">${extras.operational}</span></div>
                             <div class="data-row"><span class="data-label">Port Status</span><span class="pill ${extras.portStatus.includes('UP') || extras.portStatus.includes('Enabled') ? 'pill-success' : 'pill-danger'}">${extras.portStatus}</span></div>
                         </div>
+
                         <div class="card">
                             <div class="card-title"><span>🖥️</span> Resources & Tickets</div>
                             ${resourceSectionHtml}
@@ -453,7 +533,13 @@
                                 ${outageHtml}
                             </div>
                         </div>
+
+                        <div class="card">
+                            <div class="card-title"><span>🔌</span> Port Details</div>
+                            ${portDetailsHtml}
+                        </div>
                     </div>
+
                     <div class="card full-width">
                         <div class="card-title"><span>🎧</span> Agent Assistant</div>
                         <div class="agent-grid">
@@ -464,7 +550,6 @@
                             <div class="agent-item"><span class="icon">🌐</span><span>OM</span> <b class="pill ${om === 'No' ? 'pill-success' : 'pill-danger'}">${om}</b></div>
                         </div>
                     </div>
-                    <!-- التوقيع هنا -->
                     <div style="text-align: center; margin-top: 40px; color: var(--text-muted); font-size: 13px; font-weight: 600; opacity: 0.8;">
                         Developed By Anas Wael @2026
                     </div>
@@ -500,7 +585,7 @@
         var ivr = data.IVR || {};
         var transId = data.TransactionNumber;
 
-        var extras = await fetchExtras(number, type, transId, sa);
+        var extras = await fetchExtras(number, type, transId, sa, data);
         var freeRes = findValue(data, "FreeResources") || "Available";
         var offerStatus = findValue(data, "OfferStatus") || "Active";
         var billing = findValue(data, "TE_Billing") || findValue(data, "BillingStatus") || "Paid";
@@ -604,7 +689,6 @@
                     </div>
                     <div id="c360x-note" hidden style="margin-top:10px; font-weight:bold; text-align:center; font-size:15px;"></div>
                     
-                    <!-- التوقيع هنا -->
                     <div style="text-align: center; margin-top: 30px; padding-top: 15px; border-top: 1px solid #eaeaea; font-size: 13px; color: #888; font-weight: 600;">
                         Developed By Anas Wael @2026
                     </div>
@@ -666,7 +750,7 @@
             var ivr = data.IVR || {};
             var transId = data.TransactionNumber;
 
-            var extras = await fetchExtras(num, type, transId, sa);
+            var extras = await fetchExtras(num, type, transId, sa, data);
             var freeRes = findValue(data, "FreeResources") || "Available";
             var offerStatus = findValue(data, "OfferStatus") || "Active";
             var billing = findValue(data, "TE_Billing") || findValue(data, "BillingStatus") || "Paid";
@@ -740,7 +824,7 @@
                 var sa = data.ServiceActivation || {};
                 var ivr = data.IVR || {};
                 var transId = data.TransactionNumber;
-                var extras = await fetchExtras(item.n, item.t, transId, sa);
+                var extras = await fetchExtras(item.n, item.t, transId, sa, data);
                 
                 var freeRes = findValue(data, "FreeResources") || "Available";
                 var offerStatus = findValue(data, "OfferStatus") || "Active";
@@ -795,7 +879,7 @@
                     var transId = data.TransactionNumber;
 
                     note("Loading details for " + item.n + "...");
-                    var extras = await fetchExtras(item.n, item.t, transId, sa);
+                    var extras = await fetchExtras(item.n, item.t, transId, sa, data);
                     
                     var freeRes = findValue(data, "FreeResources") || "Available";
                     var offerStatus = findValue(data, "OfferStatus") || "Active";
