@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         C360X - Bulk Search
 // @namespace    http://tampermonkey.net/
-// @version      32.6.4
+// @version      32.6.5
 // @description  Fast Bulk Search for Customer 360.
 // @author       Anas Wael
 // @match        *://*.te.eg/*
@@ -14,81 +14,250 @@
 (function () {
     "use strict";
 
-    if (window.__C360X__) { return; }
-    var X = window.__C360X__ = { version: "32.6.4" };
-
     // ==========================================
-    // حقن التصميم بالقوة (CSP Bypass)
+    // 1. حقن الـ CSS الأصلي الخاص بك
     // ==========================================
     var css = `
-        body.c360x-lock { overflow: hidden !important; }
-        #c360x-modal { display: none; position: fixed; inset: 0; z-index: 999999 !important; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important; }
-        #c360x-modal.on { display: flex !important; align-items: center !important; justify-content: center !important; }
-        .c360x-backdrop { position: absolute; inset: 0; background: rgba(15, 23, 42, 0.7); backdrop-filter: blur(4px); }
-        .c360x-panel { position: relative; background: #fff !important; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25); overflow: hidden; display: flex; flex-direction: column; max-height: 92vh; margin: 0 auto; }
-        .c360x-head { padding: 20px 24px; background: #f8fafc !important; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; align-items: center; }
-        .c360x-head h3 { margin: 0; font-size: 20px; color: #0f172a !important; font-weight: 700; }
-        .c360x-head p { margin: 4px 0 0; font-size: 13px; color: #64748b !important; }
-        .c360x-x { background: transparent; border: none; font-size: 24px; color: #94a3b8; cursor: pointer; }
-        .c360x-x:hover { color: #ef4444; }
-        .c360x-body { padding: 24px; overflow-y: auto; flex: 1; background: #ffffff !important; }
-        .c360x-label { display: block; font-size: 14px; font-weight: 600; color: #334155 !important; margin-bottom: 8px; }
-        #c360x-input { width: 100%; height: 100px; padding: 12px; border: 1px solid #cbd5e1; border-radius: 8px; font-family: monospace; font-size: 14px; resize: vertical; margin-bottom: 15px; }
-        .c360x-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .c360x-types { display: flex; background: #f1f5f9 !important; padding: 4px; border-radius: 8px; }
-        .c360x-types button { padding: 8px 16px; border: none; background: transparent; border-radius: 6px; font-weight: 600; color: #64748b; cursor: pointer; transition: 0.2s; }
-        .c360x-types button.active { background: #fff !important; color: #702283 !important; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .c360x-btn { padding: 10px 16px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer; border: 1px solid transparent; display: inline-flex; align-items: center; justify-content: center; transition: 0.2s; }
-        .c360x-btn.primary { background: #702283 !important; color: #fff !important; border-color: #702283 !important; }
-        .c360x-btn.primary:hover { background: #5c1a6b !important; }
-        .c360x-btn.ghost { background: #fff !important; border-color: #cbd5e1 !important; color: #475569 !important; }
-        .c360x-btn.ghost:hover { background: #f8fafc !important; }
-        .c360x-list-head { display: flex; justify-content: space-between; align-items: center; margin-top: 15px; padding-bottom: 8px; border-bottom: 1px solid #e2e8f0; }
-        .c360x-list { max-height: 200px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; background: #f8fafc !important; margin-top: 8px; }
-        .c360x-item { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #e2e8f0; gap: 10px; background: #fff !important; }
-        .c360x-item:last-child { border-bottom: none; }
-        .c360x-item:hover { background: #f1f5f9 !important; }
-        .c360x-checkbox { width: 18px; height: 18px; accent-color: #702283; cursor: pointer; }
-        .c360x-num { font-family: monospace; font-size: 15px; font-weight: 600; color: #1e293b !important; min-width: 100px; }
-        .c360x-type-select { padding: 4px 8px; border-radius: 4px; border: 1px solid #cbd5e1; font-size: 12px; font-weight: 600; color: #475569 !important; }
-        .c360x-trigger { position: fixed; bottom: 30px; right: 30px; z-index: 999999 !important; background: #702283 !important; color: white !important; border: none; border-radius: 30px; padding: 12px 20px; font-family: 'Segoe UI', sans-serif; font-weight: 700; display: flex; align-items: center; gap: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(112, 34, 131, 0.4); transition: all 0.3s ease; }
-        .c360x-trigger:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(112, 34, 131, 0.6); }
-        .c360x-trigger svg { width: 24px; height: 24px; }
-        .c360x-pill { background: #fff !important; color: #702283 !important; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: bold; }
-        
-        /* Table Styles */
-        #c360x-results table { margin-top: 20px; font-size: 13px; border-collapse: collapse; width: 100%; text-align: left; min-width: 1300px; }
-        #c360x-results th { background: #f8f9fa !important; font-weight: 600; color: #475569 !important; border-bottom: 2px solid #e2e8f0; padding: 12px 10px; }
-        #c360x-results td { padding: 12px 10px; border-bottom: 1px solid #e2e8f0; vertical-align: middle; color: #1e293b !important; }
-        #c360x-results tr:hover { background: #f8fafc !important; }
+/* زرار الفتح */
+.c360x-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 38px;
+    padding: 0 14px;
+    margin-inline-start: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important; 
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.15) !important; 
+    color: #ffffff !important; 
+    font: 700 14px/1 Roboto, "Segoe UI", Arial, sans-serif !important;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all .18s ease;
+}
+
+.c360x-trigger:hover {
+    background: rgba(255, 255, 255, 0.25) !important;
+    border-color: rgba(255, 255, 255, 0.4) !important;
+    transform: translateY(-1px);
+}
+
+.c360x-trigger svg { width: 18px; height: 18px; color: #ffffff !important; }
+.c360x-trigger .c360x-label { color: #ffffff !important; font-weight: 700 !important; }
+
+.c360x-trigger .c360x-pill {
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 10px;
+    background: #ffffff !important;
+    color: #702283 !important; 
+    font-size: 12px;
+    font-weight: 800;
+    line-height: 20px;
+    text-align: center;
+    display: inline-block;
+}
+
+.c360x-trigger .c360x-pill[data-empty="1"] { background: rgba(255, 255, 255, 0.3) !important; color: transparent !important; }
+
+/* البانل الأساسي */
+#c360x-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 2147483000;
+    display: none;
+    --bg: #ffffff;
+    --fg: #231a2e;
+    --muted: #6d6480;
+    --line: #e8e2ef;
+    --soft: #f6f2fa;
+    --accent: #702283;
+}
+
+#c360x-modal.on { display: block; }
+body.c360x-lock { overflow: hidden !important; }
+
+.c360x-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(18, 8, 26, .55);
+    backdrop-filter: blur(3px);
+}
+
+.c360x-panel {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: min(850px, 96vw);
+    max-height: 92vh;
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    color: var(--fg);
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 30px 90px rgba(0, 0, 0, .48);
+    font: 15px/1.5 Roboto, "Segoe UI", Arial, sans-serif;
+}
+
+.c360x-head {
+    display: flex;
+    justify-content: space-between;
+    padding: 22px 28px;
+    background: linear-gradient(135deg, #702283, #aa20a6);
+}
+
+#c360x-modal .c360x-head h3 { margin: 0 0 6px; font-size: 24px; font-weight: 800; color: #ffffff !important; letter-spacing: 0.5px; }
+#c360x-modal .c360x-head p { margin: 0; font-size: 15px; color: #f0f0f0 !important; font-weight: 400; }
+
+.c360x-x {
+    background: rgba(255,255,255,.16);
+    border: 0;
+    color: #fff !important;
+    font-size: 24px;
+    width: 36px;
+    height: 36px;
+    border-radius: 9px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+.c360x-x:hover { background: rgba(255,255,255,.3); transform: scale(1.05); }
+
+.c360x-body { padding: 24px 28px; overflow: auto; flex: 1; background: #fafbfc; }
+
+.c360x-label { font-size: 15px; font-weight: 700; margin-bottom: 8px; display: block; color: #333 !important; }
+
+#c360x-input {
+    width: 100%;
+    min-height: 100px;
+    padding: 14px;
+    border-radius: 11px;
+    border: 1px solid #d1d5db;
+    background: #ffffff !important;
+    font-family: monospace;
+    font-size: 15px;
+    outline: none;
+    box-sizing: border-box;
+    transition: 0.2s;
+    color: #333 !important;
+}
+#c360x-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(112,34,131,0.1); }
+
+.c360x-row { display: flex; gap: 10px; align-items: center; margin: 18px 0; flex-wrap: wrap; }
+
+.c360x-types { display: flex; gap: 8px; }
+.c360x-types button {
+    height: 38px;
+    padding: 0 16px;
+    border-radius: 9px;
+    border: 1px solid #d1d5db;
+    background: #ffffff !important;
+    color: #4b5563 !important;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 14px;
+    transition: 0.2s;
+}
+.c360x-types button:hover { background: #f3f4f6 !important; }
+.c360x-types button.active { background: var(--accent) !important; color: #fff !important; border-color: var(--accent) !important; box-shadow: 0 4px 10px rgba(112,34,131,0.2); }
+
+.c360x-btn {
+    height: 40px;
+    padding: 0 18px;
+    border-radius: 10px;
+    font-weight: 700;
+    font-size: 14px;
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: 0.2s;
+}
+
+.c360x-btn.primary { background: linear-gradient(135deg, #702283, #aa20a6) !important; color: #fff !important; box-shadow: 0 4px 12px rgba(112,34,131,0.3); }
+.c360x-btn.primary:hover { filter: brightness(1.1); transform: translateY(-1px); }
+.c360x-btn.ghost { background: transparent !important; border-color: #d1d5db !important; color: #4b5563 !important; }
+.c360x-btn.ghost:hover { border-color: var(--accent) !important; color: var(--accent) !important; background: #f9fafb !important; }
+.c360x-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
+
+.c360x-list { max-height: 180px; overflow: auto; border: 1px solid #d1d5db; border-radius: 10px; background: #ffffff !important; padding: 8px; }
+.c360x-item { display: flex; gap: 10px; padding: 10px 12px; align-items: center; border-bottom: 1px solid #f3f4f6; font-size: 15px; }
+.c360x-item:last-child { border: 0; }
+.c360x-num { font-weight: 700; font-family: monospace; font-size: 16px; color: #111827 !important; }
+
+/* تنسيق الـ Checkbox */
+.c360x-checkbox {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+    accent-color: #702283;
+    margin-right: 5px;
+    border-radius: 4px;
+    vertical-align: middle;
+}
+
+/* تنسيق القائمة المنسدلة للنوع */
+.c360x-type-select {
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 8px;
+    border-radius: 8px;
+    background: rgba(112,34,131,.1);
+    color: #702283;
+    border: 1px solid transparent;
+    cursor: pointer;
+    outline: none;
+    margin-left: 5px;
+    font-family: inherit;
+}
+.c360x-type-select:hover {
+    border-color: #702283;
+}
+.c360x-type-select option {
+    color: #333;
+    background: #fff;
+}
+
+/* جدول النتائج */
+#c360x-results { display: none; margin-top: 20px; border: 1px solid #d1d5db; border-radius: 12px; overflow: hidden; background: white !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+#c360x-results table { width: 100%; border-collapse: collapse; font-size: 15px; }
+#c360x-results th, #c360x-results td { padding: 16px 14px; text-align: left; border-bottom: 1px solid #e5e7eb; vertical-align: middle; }
+#c360x-results th { background: #f9fafb !important; font-weight: 700; color: #4b5563 !important; font-size: 13px; text-transform: uppercase; letter-spacing: 0.5px; }
+#c360x-results tbody tr { transition: 0.15s; }
+#c360x-results tbody tr:hover { background: #f3f4f6 !important; }
+#c360x-results td { color: #333 !important; }
+#c360x-results .status-error { color: #d9534f !important; font-weight: bold; }
+#c360x-results .status-ok { color: #28a745 !important; font-weight: bold; }
     `;
 
     try {
         if (typeof GM_addStyle !== 'undefined') {
             GM_addStyle(css);
+        } else {
+            var style = document.createElement('style');
+            style.textContent = css;
+            document.head.appendChild(style);
         }
-        var style = document.createElement('style');
-        style.type = 'text/css';
-        style.appendChild(document.createTextNode(css));
-        document.documentElement.appendChild(style);
     } catch(e) {
         console.error("CSS Injection Error:", e);
     }
 
     // ==========================================
-    // المتغيرات الأساسية
+    // 2. كود الجافاسكريبت الأصلي الخاص بك
     // ==========================================
+    if (window.__C360X__) { return; }
+    var X = window.__C360X__ = { version: "32.6.5" };
+
     var state = { items: [], type: "FBB" };
     var isFetching = false;
-    var ui = {};
 
     function $(sel, root) { return (root || document).querySelector(sel); }
     function $$(sel, root) { return Array.prototype.slice.call((root || document).querySelectorAll(sel)); }
     function digits(v) { return String(v || "").replace(/[^0-9]+/g, ""); }
 
-    // ==========================================
-    // دوال البحث في الـ JSON
-    // ==========================================
+    var ui = {};
+
+    // دالة بحث عادية
     function findValue(obj, keyToFind) {
         if (!obj || typeof obj !== 'object') return null;
         var keys = Object.keys(obj);
@@ -103,15 +272,18 @@
         return null;
     }
 
+    // دالة سكانر مخصوصة للـ Card Type بتدور على أي مفتاح فيه card/board + type/name/model
     function findCardType(obj) {
         var result = null;
         function traverse(o) {
             if (!o || typeof o !== 'object' || result) return;
             for (var k in o) {
                 var key = k.toLowerCase().replace(/[^a-z0-9]/g, '');
+                // لو المفتاح فيه card أو board أو module وكمان فيه type أو name أو model
                 if ((key.includes('card') || key.includes('board') || key.includes('module')) &&
                     (key.includes('type') || key.includes('name') || key.includes('model'))) {
                     var val = o[k];
+                    // لازم تكون قيمة نصية ومش فاضية ومش 0 أو N/A
                     if (typeof val === 'string' && val.trim() !== '' && val.trim() !== 'N/A' && val.trim() !== '0') {
                         result = val.trim();
                         return;
@@ -124,9 +296,6 @@
         return result;
     }
 
-    // ==========================================
-    // دالة التنبيهات
-    // ==========================================
     function note(msg, kind) {
         if (!ui.note) return;
         ui.note.hidden = false;
@@ -136,9 +305,6 @@
         note.timer = setTimeout(function () { ui.note.hidden = true; }, 8000);
     }
 
-    // ==========================================
-    // إدارة الحالة
-    // ==========================================
     function loadState() {
         try {
             var saved = localStorage.getItem("c360x.items");
@@ -174,9 +340,6 @@
         ]);
     }
 
-    // ==========================================
-    // رسم الواجهة
-    // ==========================================
     function render() {
         if (!ui.list) return;
         ui.list.innerHTML = "";
@@ -256,9 +419,9 @@
         ui.pill.textContent = state.items.length;
     }
 
-    // ==========================================
-    // دوال الـ API وجلب البيانات
-    // ==========================================
+    /* ------------------------------------------------------------------
+       API Fetch Logic
+    ------------------------------------------------------------------ */
     function getBase64(img) { return img.startsWith("data:") ? img : "data:image/png;base64," + img; }
 
     function findGapX(bgSrc, sliderSrc) {
@@ -439,6 +602,7 @@
                 var pRes = await fetchWithTimeout(`https://customer360.te.eg/api/Customers/ServiceAcativation/${accountNumber}/${number}/GetAnotherPortDetails?transactionID=${transId}`, { credentials: "include" }, 5000);
                 pData = await pRes.json();
 
+                // لو الـ pData راجع Array، بندور على البورت بتاعنا
                 var targetPortData = pData;
                 if (Array.isArray(pData) && sa.DATA_PORT) {
                     var matched = pData.find(function(x) {
@@ -447,6 +611,9 @@
                     if (matched) targetPortData = matched;
                 }
                 
+                // ديباج: بنطبع الداتا في الكونسول عشان لو لسه مظهرش نعرف السبب
+                console.log("Port Details Data for Debugging:", { popData: popData, pData: pData, targetPortData: targetPortData, sa: sa });
+
                 var att = findValue(popData, "AttainableSpeed") || findValue(targetPortData, "AttainableSpeed") || sa.ATTAINABLE_SPEED;
                 var op = findValue(popData, "OperationalSpeed") || findValue(targetPortData, "OperationalSpeed") || sa.OPERATIONAL_SPEED;
                 var admin = findValue(popData, "PortAdminStatus") || findValue(targetPortData, "PortAdminStatus") || sa.ADMIN_STATUS;
@@ -463,7 +630,10 @@
 
                 res.cabinCode = sa.CABIN_CODE || sa.CabinCode || findValue(popData, "CabinCode") || findValue(targetPortData, "CabinCode") || "N/A";
                 res.popType = sa.POP_TYPE || sa.POPType || findValue(popData, "POPType") || findValue(targetPortData, "POPType") || "N/A";
+                
+                // استخدام الدالة القوية للبحث عن الـ Card Type
                 res.cardType = findCardType(sa) || findCardType(mainData) || findCardType(popData) || findCardType(targetPortData) || "N/A";
+
                 res.portNo = sa.PORT_NO || sa.PortNo || sa.DATA_PORT || findValue(popData, "PortNo") || findValue(targetPortData, "PortNo") || "N/A";
                 res.frame = sa.FRAME || sa.Frame || findValue(popData, "Frame") || findValue(targetPortData, "Frame") || "N/A";
 
@@ -471,12 +641,10 @@
         })();
 
         await Promise.all([pOutage, pTTS, pUsage, pResources, pPorts]);
+
         return res;
     }
 
-    // ==========================================
-    // عرض الـ Fast View
-    // ==========================================
     function openFastProfile(number, type, sa, ivr, extras, targetWin) {
         var win = targetWin || window.open('', '_blank');
         if (!win) return; 
@@ -636,9 +804,6 @@
         win.document.close();
     }
 
-    // ==========================================
-    // دوال التشغيل والفتح
-    // ==========================================
     async function fetchAndOpen(number, type, mode, btnElement) {
         if (mode === 'normal') {
             openSingleTab(number, type);
@@ -679,9 +844,9 @@
         note("");
     }
 
-    // ==========================================
-    // حقن الواجهة في الصفحة
-    // ==========================================
+    /* ------------------------------------------------------------------
+       UI Injection
+    ------------------------------------------------------------------ */
     function injectUI() {
         if (document.getElementById("c360x-trigger")) return true;
         var adv = document.querySelector('.advanced-search[data-bs-target="#advanced-search"]');
@@ -1035,9 +1200,6 @@
         return true;
     }
 
-    // ==========================================
-    // Deep Link & Boot
-    // ==========================================
     function bootDeepLink() {
         var target = { n: "", t: "" };
         var raw = String(location.hash || "").replace(/^#/, "");
