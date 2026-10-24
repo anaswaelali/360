@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "C360X - Bulk Search",
+  "version": "32.5.3",
+  "description": "Fast Bulk Search for Customer 360.",
+  "permissions": [
+    "storage",
+    "cookies",
+    "activeTab",
+    "scripting"
+  ],
+  "host_permissions": [
+    "*://*.te.eg/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.te.eg/*"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
